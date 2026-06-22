@@ -7,74 +7,130 @@ import matplotlib.patches as mpatches
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from sklearn.linear_model import LinearRegression
-from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor
+from sklearn.ensemble import GradientBoostingRegressor
+from sklearn.tree import DecisionTreeRegressor
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error
 import warnings
 warnings.filterwarnings("ignore")
 
+import matplotlib as mpl
+mpl.rcParams.update({
+    "figure.facecolor":  "white",
+    "axes.facecolor":    "#f8fafc",
+    "axes.edgecolor":    "#e2e8f0",
+    "axes.labelcolor":   "#1e293b",
+    "xtick.color":       "#475569",
+    "ytick.color":       "#475569",
+    "text.color":        "#1e293b",
+    "grid.color":        "#e2e8f0",
+    "grid.linestyle":    "--",
+    "grid.alpha":        1.0,
+    "legend.framealpha": 0.95,
+    "legend.edgecolor":  "#e2e8f0",
+})
+
 DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "train.csv")
 
 # ── Palette couleurs ────────────────────────────────────────────────────────
-C_BLUE   = "#457b9d"
-C_RED    = "#e63946"
-C_DARK   = "#1d3557"
-C_GREEN  = "#2d6a4f"
-C_GRAY   = "#6b7280"
-C_LIGHT  = "#f1faee"
+C_BLUE   = "#2563eb"
+C_RED    = "#dc2626"
+C_DARK   = "#0f172a"
+C_GREEN  = "#16a34a"
+C_GRAY   = "#64748b"
+C_LIGHT  = "#f8fafc"
 
 st.set_page_config(
     page_title="Démo – Gradient Boosting",
     page_icon="🌲",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
 # ── CSS global ───────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-    .main { background: #f8fafc; }
-    h1 { color: #1d3557; }
-    h2 { color: #1d3557; }
+    /* ── fond général ── */
+    .stApp,
+    [data-testid="stAppViewContainer"],
+    [data-testid="stMain"] { background-color: #f8fafc !important; }
+    [data-testid="stHeader"]  { background: #ffffff; border-bottom: 1px solid #e2e8f0; }
+
+    /* ── typographie ── */
+    h1, h2, h3 { color: #0f172a !important; font-weight: 700; }
+    h4, h5     { color: #1e293b !important; }
+    p, li      { color: #334155 !important; }
+    label      { color: #1e293b !important; }
+    .stMarkdown p, .stMarkdown li { color: #334155 !important; }
+    [data-testid="stHeadingWithActionElements"] * { color: #0f172a !important; }
+
+    /* ── cards métriques ── */
     .metric-card {
-        background: white;
-        border-radius: 10px;
+        background: #ffffff;
+        border-radius: 12px;
         padding: 18px 22px;
-        border-left: 5px solid #457b9d;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+        border: 1px solid #e2e8f0;
+        border-left: 5px solid #2563eb;
+        box-shadow: 0 1px 4px rgba(15,23,42,0.06);
         margin-bottom: 12px;
-        color: #1d3557;
+        color: #0f172a;
     }
-    .metric-label { font-size: 0.78rem; color: #4b5563; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
-    .metric-value { font-size: 1.8rem; font-weight: 700; color: #1d3557; }
-    .metric-sub   { font-size: 0.82rem; color: #2563a8; }
+    .metric-label {
+        font-size: 0.72rem; color: #64748b; font-weight: 700;
+        text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    .metric-value { font-size: 1.75rem; font-weight: 700; color: #0f172a; }
+    .metric-sub   { font-size: 0.82rem; color: #2563eb; }
+
+    /* ── boîtes info ── */
     .info-box {
-        background: #e8f4f8;
-        border-left: 4px solid #457b9d;
+        background: #eff6ff;
+        border-left: 4px solid #3b82f6;
         padding: 12px 16px;
-        border-radius: 6px;
+        border-radius: 8px;
         margin: 8px 0;
         font-size: 0.9rem;
-        color: #1d3557;
+        color: #1e40af;
     }
-    .info-box b { color: #1d3557; }
+    .info-box b, .info-box i { color: #1e3a8a; }
+
+    /* ── boîtes highlight ── */
     .highlight-box {
-        background: #fff3e0;
-        border-left: 4px solid #f97316;
+        background: #fefce8;
+        border-left: 4px solid #eab308;
         padding: 12px 16px;
-        border-radius: 6px;
+        border-radius: 8px;
         margin: 8px 0;
         font-size: 0.9rem;
-        color: #7c2d12;
+        color: #713f12;
     }
-    .highlight-box b { color: #7c2d12; }
-    .stTabs [data-baseweb="tab-list"] { gap: 4px; }
+    .highlight-box b { color: #713f12; }
+
+    /* ── onglets ── */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 6px;
+        background: #e2e8f0;
+        padding: 5px 6px;
+        border-radius: 12px;
+    }
     .stTabs [data-baseweb="tab"] {
-        height: 48px;
-        font-size: 1rem;
+        height: 42px;
+        font-size: 0.92rem;
         font-weight: 600;
-        border-radius: 8px 8px 0 0;
+        border-radius: 8px;
+        color: #475569;
+        background: transparent;
+        padding: 0 18px;
     }
+    .stTabs [aria-selected="true"] {
+        background: #ffffff !important;
+        color: #0f172a !important;
+        box-shadow: 0 1px 4px rgba(15,23,42,0.10);
+    }
+
+    /* ── sliders et contrôles ── */
+    [data-testid="stSlider"] label,
+    [data-testid="stSelectSlider"] label { color: #1e293b !important; font-weight: 600; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -119,13 +175,19 @@ class DecisionStump:
 
 
 class GradientBoostingScratch:
-    def __init__(self, n_estimators=50, learning_rate=0.1):
+    def __init__(self, n_estimators=50, learning_rate=0.1, max_depth=1):
         self.n_estimators  = n_estimators
         self.learning_rate = learning_rate
-        self.stumps        = []
+        self.max_depth     = max_depth
+        self.trees         = []
         self.init_value    = None
         self.train_mse_history = []
         self.test_mse_history  = []
+
+    def _make_tree(self):
+        if self.max_depth == 1:
+            return DecisionStump()
+        return DecisionTreeRegressor(max_depth=self.max_depth)
 
     def fit(self, X_tr, y_tr, X_te=None, y_te=None):
         self.init_value = np.mean(y_tr)
@@ -133,19 +195,19 @@ class GradientBoostingScratch:
         pred_te = np.full(len(y_te), self.init_value) if X_te is not None else None
         for _ in range(self.n_estimators):
             residus = y_tr - pred_tr
-            s = DecisionStump()
-            s.fit(X_tr, residus)
-            self.stumps.append(s)
-            pred_tr = pred_tr + self.learning_rate * s.predict(X_tr)
+            t = self._make_tree()
+            t.fit(X_tr, residus)
+            self.trees.append(t)
+            pred_tr = pred_tr + self.learning_rate * t.predict(X_tr)
             self.train_mse_history.append(np.mean((pred_tr - y_tr)**2))
             if X_te is not None:
-                pred_te = pred_te + self.learning_rate * s.predict(X_te)
+                pred_te = pred_te + self.learning_rate * t.predict(X_te)
                 self.test_mse_history.append(np.mean((pred_te - y_te)**2))
 
     def predict(self, X):
         pred = np.full(X.shape[0], self.init_value)
-        for s in self.stumps:
-            pred += self.learning_rate * s.predict(X)
+        for t in self.trees:
+            pred += self.learning_rate * t.predict(X)
         return pred
 
 
@@ -177,9 +239,10 @@ def load_data():
 
 
 @st.cache_data(show_spinner="Entraînement du Gradient Boosting from scratch…")
-def train_gb_scratch(n_estimators, learning_rate):
+def train_gb_scratch(n_estimators, learning_rate, max_depth):
     X_train, X_test, y_train, y_test, _ = load_data()
-    gb = GradientBoostingScratch(n_estimators=n_estimators, learning_rate=learning_rate)
+    gb = GradientBoostingScratch(
+        n_estimators=n_estimators, learning_rate=learning_rate, max_depth=max_depth)
     gb.fit(X_train, y_train, X_test, y_test)
     return gb.train_mse_history, gb.test_mse_history, gb.predict(X_test), y_test
 
@@ -210,17 +273,19 @@ def compute_benchmarks():
     mse_gb_opt = mean_squared_error(y_test, gb_opt.predict(X_test))
     fi_gb = gb_opt.feature_importances_
 
-    # Random Forest
-    rf = RandomForestRegressor(n_estimators=200, random_state=42)
-    rf.fit(X_train, y_train)
-    mse_rf = mean_squared_error(y_test, rf.predict(X_test))
+    # GB from scratch (100 stumps, lr=0.1)
+    gb_scratch = GradientBoostingScratch(n_estimators=100, learning_rate=0.1)
+    gb_scratch.fit(X_train, y_train)
+    pred_gb_scratch = gb_scratch.predict(X_test)
+    mse_gb_scratch = mean_squared_error(y_test, pred_gb_scratch)
 
     return {
         "mse_lr": mse_lr,
         "mse_stump": mse_stump,
         "mse_gb_iso": mse_gb_iso,
         "mse_gb_opt": mse_gb_opt,
-        "mse_rf": mse_rf,
+        "mse_gb_scratch": mse_gb_scratch,
+        "pred_gb_scratch": pred_gb_scratch,
         "fi_gb": fi_gb,
         "feature_cols": feature_cols,
         "gb_opt": gb_opt,
@@ -267,7 +332,7 @@ with tab1:
     with col_ctrl:
         st.markdown("#### ⚙️ Paramètres")
         n_estimators = st.slider(
-            "Nombre d'arbres (stumps)", min_value=5, max_value=300,
+            "Nombre d'arbres", min_value=5, max_value=300,
             value=100, step=5,
             help="Chaque arbre corrige les résidus du précédent."
         )
@@ -277,15 +342,23 @@ with tab1:
             value=0.10,
             help="Poids donné à chaque arbre. Faible = apprentissage lent mais stable."
         )
+        max_depth = st.radio(
+            "Profondeur des arbres (max_depth)",
+            options=[1, 2, 3],
+            index=0,
+            horizontal=True,
+            help="depth=1 = stump (from scratch) · depth=2/3 = arbre plus expressif (sklearn tree)"
+        )
+        depth_labels = {1: "stump (1 coupure)", 2: "2 niveaux (4 feuilles)", 3: "3 niveaux (8 feuilles)"}
         st.markdown(
             f"""<div class="info-box">
-            <b>Convergence attendue :</b><br>
-            Avec η={learning_rate} et {n_estimators} arbres, 
-            {'le modèle est probablement en <b>sous-apprentissage</b> — augmentez les arbres.' 
+            <b>Configuration :</b> {n_estimators} arbres · η={learning_rate} · {depth_labels[max_depth]}<br>
+            {'⚠️ <b>Sous-apprentissage</b> probable — augmentez le nombre d\'arbres.'
              if n_estimators < 30 else
-             'la convergence est en cours.' 
+             'Convergence en cours.'
              if n_estimators < 150 else
-             'le <b>surapprentissage</b> peut apparaître — regardez l\'écart train/test.'}
+             '⚠️ <b>Surapprentissage</b> possible — observez l\'écart train/test.'}
+            {' Avec depth>1, le modèle capte plus d\'interactions mais risque de sur-fitter plus vite.' if max_depth > 1 else ''}
             </div>""",
             unsafe_allow_html=True
         )
@@ -304,7 +377,7 @@ with tab1:
     # Entraînement
     with st.spinner("Entraînement en cours…"):
         train_hist, test_hist, y_pred_scratch, y_test_ref = train_gb_scratch(
-            n_estimators, learning_rate)
+            n_estimators, learning_rate, max_depth)
 
     # Métriques rapides
     best_iter = int(np.argmin(test_hist)) + 1
@@ -390,11 +463,11 @@ with tab1:
 
     st.markdown(
         f"""<div class="highlight-box">
-        <b>📌 À retenir :</b> Avec {n_estimators} arbres et η={learning_rate}, 
-        le MSE optimal est <b>{best_mse:.5f}</b> (atteint à l'arbre n°{best_iter}).
-        {"Le modèle est encore en apprentissage — pas de surapprentissage détecté." 
+        <b>📌 À retenir :</b> {n_estimators} arbres · η={learning_rate} · depth={max_depth} —
+        MSE optimal <b>{best_mse:.5f}</b> (arbre n°{best_iter}).
+        {"Pas de surapprentissage détecté."
          if gap < 0.001 else
-         f"Un surapprentissage de +{gap:.5f} est observé après le point optimal."}
+         f"Surapprentissage de +{gap:.5f} après le point optimal."}
         La régression linéaire de référence atteint MSE ≈ 0.024 avec 9 features.
         </div>""",
         unsafe_allow_html=True
@@ -418,7 +491,7 @@ with tab2:
     models_data = [
         ("Decision Stump (depth=1)", bench["mse_stump"], np.sqrt(bench["mse_stump"]), "From scratch"),
         ("Régression Linéaire (9 features)", bench["mse_lr"], np.sqrt(bench["mse_lr"]), "sklearn"),
-        ("Random Forest (200 arbres)", bench["mse_rf"], np.sqrt(bench["mse_rf"]), "sklearn"),
+        ("GB from scratch (100 stumps, lr=0.1)", bench["mse_gb_scratch"], np.sqrt(bench["mse_gb_scratch"]), "From scratch"),
         ("Gradient Boosting iso-param.\n(100 stumps, depth=1, lr=0.1)", bench["mse_gb_iso"], np.sqrt(bench["mse_gb_iso"]), "sklearn"),
         ("Gradient Boosting optimal\n(200 arbres, depth=3, lr=0.05)", bench["mse_gb_opt"], np.sqrt(bench["mse_gb_opt"]), "sklearn ★ meilleur"),
     ]
@@ -450,19 +523,19 @@ with tab2:
         labels = [
             "Decision Stump",
             "Régression\nLinéaire",
-            "Random\nForest",
-            "GB iso-param.\n(depth=1)",
+            "GB scratch\n(100 stumps)",
+            "GB sklearn\n(depth=1)",
             "GB optimal\n(depth=3)",
         ]
         values = [
             bench["mse_stump"],
             bench["mse_lr"],
-            bench["mse_rf"],
+            bench["mse_gb_scratch"],
             bench["mse_gb_iso"],
             bench["mse_gb_opt"],
         ]
-        colors = [C_RED, C_GRAY, C_BLUE, C_BLUE, C_GREEN]
-        alphas = [0.9, 0.7, 0.75, 0.85, 1.0]
+        colors = [C_RED, C_GRAY, "#7c3aed", C_BLUE, C_GREEN]
+        alphas = [0.9, 0.7, 0.85, 0.85, 1.0]
 
         fig3, ax4 = plt.subplots(figsize=(7, 5), facecolor="white")
         bars = ax4.barh(labels, values, color=colors, edgecolor="white", height=0.55)
@@ -517,17 +590,16 @@ with tab2:
     stump_model.fit(X_tr, y_tr)
 
     lr_model = LinearRegression().fit(X_tr, y_tr)
-    rf_model = RandomForestRegressor(n_estimators=200, random_state=42).fit(X_tr, y_tr)
     gb_model = GradientBoostingRegressor(
         n_estimators=200, learning_rate=0.05, max_depth=3, random_state=42).fit(X_tr, y_tr)
 
     preds = {
         "Decision Stump": stump_model.predict(X_te),
         "Régression Linéaire": lr_model.predict(X_te),
-        "Random Forest": rf_model.predict(X_te),
+        "GB from scratch": bench["pred_gb_scratch"],
         "GB sklearn optimal": gb_model.predict(X_te),
     }
-    violin_colors = [C_RED, C_GRAY, C_BLUE, C_GREEN]
+    violin_colors = [C_RED, C_GRAY, "#7c3aed", C_GREEN]
 
     # ── Violin : distribution des résidus ─────────────────────────────────
     fig_violin = go.Figure()
