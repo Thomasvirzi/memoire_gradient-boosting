@@ -7,7 +7,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import GradientBoostingRegressor
-from sklearn.tree import DecisionTreeRegressor
+from sklearn.tree import DecisionTreeRegressor, plot_tree as sk_plot_tree
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error
 import warnings
@@ -116,7 +116,7 @@ label   { color: var(--c-dark-800) !important; font-weight: 500; }
     margin: 0 0 10px; font-family: var(--font) !important;
 }
 .hero-subtitle {
-    color: rgba(255,255,255,.72) !important; font-size: 1.02rem;
+    color: #fff !important; font-size: 1.02rem;
     line-height: 1.65; margin: 0 0 30px; max-width: 560px;
 }
 .hero-stats { display: flex; gap: 36px; flex-wrap: wrap; }
@@ -427,10 +427,10 @@ st.markdown("""
 <div class="hero">
   <div class="hero-badge">Mémoire M1 Data Science · 2024–2025</div>
   <div class="hero-title">🌲 Gradient Boosting</div>
-  <p class="hero-subtitle">
+  <div class="hero-subtitle">
     Implémentation from-scratch &amp; comparaison avec scikit-learn<br>
     Dataset Ames Housing · log(SalePrice) · 80 % train / 20 % test
-  </p>
+  </div>
   <div class="hero-stats">
     <div class="hero-stat">
       <span class="hero-stat-num">1 460</span>
@@ -494,30 +494,70 @@ with tab1:
             </div>""", unsafe_allow_html=True)
 
     with col_right:
-        st.markdown("#### Pseudocode")
+        st.markdown("#### Illustration — Arbre de décision (apprenant faible)")
+        st.markdown(
+            "À chaque itération, le GB entraîne un **arbre peu profond** sur les résidus courants. "
+            "Voici un exemple de Decision Stump (depth=1) ajusté sur des résidus 1D :"
+        )
+
+        np.random.seed(42)
+        _X_demo = np.sort(np.random.uniform(0, 10, 80)).reshape(-1, 1)
+        _y_demo = np.sin(_X_demo.ravel()) + 0.35 * np.random.randn(80)
+        _init   = np.mean(_y_demo)
+        _resid  = _y_demo - _init
+
+        _stump = DecisionTreeRegressor(max_depth=1, random_state=42)
+        _stump.fit(_X_demo, _resid)
+
+        fig_tree, axes_tree = plt.subplots(
+            1, 2, figsize=(8, 4.2), facecolor="white",
+            gridspec_kw={"width_ratios": [1.6, 1]}
+        )
+
+        sk_plot_tree(
+            _stump,
+            feature_names=["x"],
+            filled=True,
+            rounded=True,
+            fontsize=10,
+            ax=axes_tree[0],
+            impurity=False,
+            precision=3,
+        )
+        axes_tree[0].set_title("Decision Stump sur les résidus", fontweight="bold", fontsize=11)
+        axes_tree[0].set_facecolor("white")
+
+        _x_line  = np.linspace(0, 10, 300).reshape(-1, 1)
+        _thr     = _stump.tree_.threshold[0]
+        _lv      = _stump.tree_.value[1][0][0]
+        _rv      = _stump.tree_.value[2][0][0]
+
+        axes_tree[1].scatter(_X_demo.ravel(), _resid, s=18, alpha=0.55,
+                             color=C_GRAY, edgecolors="none", label="Résidus")
+        axes_tree[1].axvline(_thr, color=C_BLUE, lw=1.8, linestyle="--",
+                             label=f"Seuil x ≤ {_thr:.2f}")
+        axes_tree[1].hlines(_lv, 0, _thr, colors=C_RED, lw=2.5,
+                            label=f"Préd. gauche = {_lv:.3f}")
+        axes_tree[1].hlines(_rv, _thr, 10, colors=C_GREEN, lw=2.5,
+                            label=f"Préd. droite = {_rv:.3f}")
+        axes_tree[1].set_xlabel("x", fontsize=10)
+        axes_tree[1].set_ylabel("Résidu", fontsize=10)
+        axes_tree[1].set_title("Régions prédites", fontweight="bold", fontsize=11)
+        axes_tree[1].legend(fontsize=7.5, loc="upper right")
+        axes_tree[1].set_facecolor("#fafafa")
+
+        plt.tight_layout()
+        st.pyplot(fig_tree)
+        plt.close()
+
         st.markdown("""
-        <div class="pseudo-code"><span class="pc-kw">Algorithme</span> <span class="pc-fn">GradientBoosting</span>(X, y, T, η)
+        <div class="info-box">
+        <b>Comment lire :</b> le stump choisit <i>un seul seuil</i> sur <i>x</i>.
+        Les points à gauche reçoivent la valeur moyenne des résidus gauche,
+        ceux à droite la valeur droite. Ce correctif est ajouté au modèle courant
+        pondéré par η, puis l'opération se répète.
+        </div>""", unsafe_allow_html=True)
 
-  <span class="pc-cm"># Étape 0 : initialisation</span>
-  F₀(x) <span class="pc-op">←</span> <span class="pc-fn">mean</span>(y)
-
-  <span class="pc-kw">Pour</span> t <span class="pc-op">=</span> <span class="pc-nm">1</span> <span class="pc-kw">à</span> T <span class="pc-kw">faire</span>
-
-    <span class="pc-cm"># Gradient négatif de la MSE (résidus)</span>
-    rᵢ  <span class="pc-op">←</span>  yᵢ <span class="pc-op">−</span> Fₜ₋₁(xᵢ)   ∀ i
-
-    <span class="pc-cm"># Apprenant faible ajusté sur les résidus</span>
-    hₜ  <span class="pc-op">←</span>  <span class="pc-fn">DecisionStump</span>.fit(X, r)
-
-    <span class="pc-cm"># Mise à jour additive pondérée</span>
-    Fₜ(x)  <span class="pc-op">←</span>  Fₜ₋₁(x) <span class="pc-op">+</span> η <span class="pc-op">·</span> hₜ(x)
-
-  <span class="pc-kw">Retourner</span>  F_T(x)</div>
-        """, unsafe_allow_html=True)
-
-        st.markdown("#### Formulation mathématique")
-        st.latex(r"\hat{F}_T(x)\;=\;F_0(x)\;+\;\eta\sum_{t=1}^{T}h_t(x)")
-        st.latex(r"r_i^{(t)}\;=\;-\frac{\partial\,\mathcal{L}}{\partial F_{t-1}(x_i)}\;=\;y_i - F_{t-1}(x_i)")
 
     st.divider()
 
