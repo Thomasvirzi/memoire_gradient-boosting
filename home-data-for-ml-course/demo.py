@@ -425,11 +425,11 @@ def metric_card(col, label, value, sub="", accent=C_BLUE):
 
 st.markdown("""
 <div class="hero">
-  <div class="hero-badge">Mémoire M1 Data Science · 2024–2025</div>
+  <div class="hero-badge">Mémoire M1 Data Science · 2025–2026</div>
   <div class="hero-title">🌲 Gradient Boosting</div>
   <div class="hero-subtitle">
     Implémentation from-scratch &amp; comparaison avec scikit-learn<br>
-    Dataset Ames Housing · log(SalePrice) · 80 % train / 20 % test
+    Dataset Housing Prices Competition for Kaggle Learn Users
   </div>
   <div class="hero-stats">
     <div class="hero-stat">
